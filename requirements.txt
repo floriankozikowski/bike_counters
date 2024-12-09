@@ -6,3 +6,5 @@ scikit-learn
 folium
 ipython
 jupyterlab
+holidays
+xgboost>=2.0.0
