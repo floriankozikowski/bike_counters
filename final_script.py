@@ -1,24 +1,45 @@
+# Please refer to the Github Repository for the development 
+# and underlying thought train of the models and its feature selection
+# https://github.com/floriankozikowski/bike_counters
+# This final version uses HistGradientBoosting
+
+###################### Import Libraries ######################
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import sklearn
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, StandardScaler
+from sklearn.preprocessing import FunctionTransformer, OneHotEncoder
 from pathlib import Path
 from sklearn.model_selection import train_test_split, RandomizedSearchCV
-from sklearn.linear_model import LinearRegression, Ridge
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error, r2_score, root_mean_squared_error
-from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import Pipeline
-from xgboost import XGBRegressor
-from sklearn.model_selection import cross_val_score
-from sklearn.metrics import make_scorer
-from sklearn import set_config
+from sklearn.metrics import mean_squared_error
 from sklearn.ensemble import HistGradientBoostingRegressor
 import holidays
 
+###################### Load Train Data ######################
 data = pd.read_parquet(Path("data") / "train.parquet")
+
+####################### Feature Engineering and Preprocessing ######################
+
+def filter_outliers(data):
+    data["date_t"] = data["date"].dt.floor("D")
+
+    cleaned_data = (
+        data.groupby(["counter_name", "date_t"])
+        ["log_bike_count"].sum()
+        .to_frame()
+        .reset_index()
+        .query("log_bike_count == 0")
+        [["counter_name", "date_t"]]
+        .merge(data, on=["counter_name", "date_t"], how="right", indicator=True)
+        .query("_merge == 'right_only'")
+        .drop(columns=["_merge", "date_t"])
+    )
+
+    return cleaned_data
+
+data = filter_outliers(data)
 
 def _encode_categorical_features(X):
     X = X.copy()
@@ -51,28 +72,13 @@ def _add_holiday_indicator(X):
     X["is_holiday"] = X["date"].dt.date.apply(lambda x: 1 if x in france_holidays else 0)
     return X
 
-# Define feature dropping for low predictive value and date
-def _drop_low_value_features(X):
-    X = X.copy()
-    X.drop(columns=['date', 'year', 'month', 'day', 'site_id', 'counter_id', 'date', 'counter_installation_date', 
-                    'counter_technical_id', 'coordinates', 'latitude', 'longitude'], inplace=True)
-    return X
-
 tourist_locations = {
     "Eiffel Tower": (48.8584, 2.2945),
     "Louvre Museum": (48.8606, 2.3376),
     "Notre Dame Cathedral": (48.852968, 2.349902),
     "Sacré-Cœur": (48.8867, 2.3431),
-    "Arc de Triomphe": (48.8738, 2.2950),
-    "Châtelet Station": (48.8581, 2.3470),
-    "Gare du Nord": (48.8808, 2.3553),
-    "Montparnasse Tower": (48.8422, 2.3211),
-    "Place de la République": (48.8673, 2.3632),
-    "Place de la Bastille": (48.853, 2.369),
-    "Opéra Garnier": (48.8719, 2.3316),
+    "Arc de Triomphe": (48.8738, 2.2950)
 }
-
-
 
 def _haversine(lat1, lon1, lat2, lon2):
     R = 6371  # Earth's radius in km
@@ -117,13 +123,11 @@ def _encode_dates(X):
 
 data = _encode_dates(data)
 
-
-
 # Define feature dropping for low predictive value and date (for the XGBoost and Histboost)
 def _drop_low_value_features_grad(X):
     X = X.copy()
-    X.drop(columns=['date', 'month', 'year', 'counter_id', 'date', 'counter_installation_date',
-                    'counter_technical_id', 'coordinates', 'latitude', 'longitude', 'weekday'], inplace=True)
+    X.drop(columns=['date', 'month', 'year', 'counter_id', 'counter_installation_date',
+                    'counter_technical_id', 'coordinates', 'latitude', 'longitude'], inplace=True)
     return X
 
 preprocessor_grad = Pipeline(steps=[
@@ -138,15 +142,14 @@ preprocessor_grad = Pipeline(steps=[
 
 data = preprocessor_grad.fit_transform(data)
 
+###################### Modeling ######################
+
 features = [col for col in data.columns if col not in ["log_bike_count", "bike_count", "counter_id", "coordinates"]]
 X = data[features]
 y = data["log_bike_count"]
 
 # Split the data into training and validation sets
 X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size=0.2, random_state=42)
-
-
-
 
 
 
@@ -191,6 +194,8 @@ print(f"Best RMSE (CV): {abs(random_search.best_score_):.2f}")
 print(f"Train RMSE: {train_rmse:.2f}")
 print(f"Validation RMSE: {valid_rmse:.2f}")
 
+###################### Apply to Test Data ######################
+
 test_data = pd.read_parquet(Path("data") / "final_test.parquet")
 
 test_data = _encode_dates(test_data)
@@ -208,6 +213,6 @@ submission_df = pd.DataFrame({
     "log_bike_count": test_predictions
 })
 
-# Save to CSV
+###################### Save to CSV ######################
 submission_file_path = "submission.csv"
 submission_df.to_csv(submission_file_path, index=False)
