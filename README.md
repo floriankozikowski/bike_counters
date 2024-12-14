@@ -46,3 +46,21 @@ and compute your score.
 
 Note that your submission .csv file must have the columns "Id" and "bike_log_count",
 and be of the same length as `final_test.parquet`.
+
+
+
+### Notebooks in the Repository
+
+This repository contains several Jupyter notebooks to assist in the development of your model for the bike counters dataset challenge. Below is a description of each file to help you navigate through the project:
+
+- **`preprocessing_modeling.ipynb`**:  
+  This notebook contains feature engineering processes applied to the main dataset (`train.parquet`) as well as the implementation of the main models used for prediction. It is the core file for building and training models based on the primary dataset.
+
+- **`eda.ipynb`**:  
+  This notebook is dedicated to the Exploratory Data Analysis (EDA) of the main dataset. It provides insights into the data's structure, distributions, and relationships to identify patterns and inform feature engineering decisions.
+
+- **`weather_eda.ipynb`**:  
+  This notebook focuses on the EDA of the weather dataset. It explores how weather variables may relate to bike counts and prepares for their potential integration into the main dataset.
+
+- **`modeling_alternative.ipynb`**:  
+  This notebook extends the analysis by merging the main dataset with the weather dataset to create a combined dataframe. It performs feature engineering and explores alternative models leveraging the enriched data, aiming to improve predictive performance.
